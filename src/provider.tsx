@@ -27,30 +27,29 @@ export function AuthKitProvider(props: AuthKitProviderProps) {
     children,
     onRefresh,
     onRefreshFailure,
-    onRedirectCallback,
+    // onRedirectCallback,
     refreshBufferInterval,
   } = props;
   const [client, setClient] = React.useState<Client>(NOOP_CLIENT);
   const [state, setState] = React.useState(initialState);
 
-  const handleRefresh = React.useCallback(
-    (response: OnRefreshResponse) => {
-      const { user, accessToken, organizationId } = response;
-      const { role = null, permissions = [] } = getClaims(accessToken);
-      setState((prev) => {
-        const next = {
-          ...prev,
-          user,
-          organizationId: organizationId ?? null,
-          role,
-          permissions,
-        };
-        return isEquivalentWorkOSSession(prev, next) ? prev : next;
-      });
-      onRefresh?.(response);
-    },
-    [client],
-  );
+  const handleRefresh = React.useCallback((response: OnRefreshResponse) => {
+    const { user, accessToken, organizationId } = response;
+    const { role = null, permissions = [] } = getClaims(accessToken);
+    setState((prev) => {
+      const next = {
+        ...prev,
+        user,
+        organizationId: organizationId ?? null,
+        role,
+        permissions,
+      };
+      return isEquivalentWorkOSSession(prev, next) ? prev : next;
+    });
+    onRefresh?.(response);
+  }, []);
+
+  const onRedirectCallback = props.onRedirectCallback;
 
   React.useEffect(() => {
     function initialize() {
@@ -88,19 +87,28 @@ export function AuthKitProvider(props: AuthKitProviderProps) {
     setState(initialState);
 
     return initialize();
-  }, [clientId, apiHostname, https, port, redirectUri, refreshBufferInterval]);
+  }, [
+    clientId,
+    apiHostname,
+    https,
+    port,
+    redirectUri,
+    refreshBufferInterval,
+    onRedirectCallback,
+    handleRefresh,
+  ]);
 
-  return (
-    <Context.Provider value={{ ...client, ...state }}>
-      {children}
-    </Context.Provider>
-  );
+  const contextValue = React.useMemo(() => {
+    return { ...client, ...state };
+  }, [client, state]);
+
+  return <Context.Provider value={contextValue}>{children}</Context.Provider>;
 }
 
 // poor-man's "deep equality" check
 function isEquivalentWorkOSSession(
   a: typeof initialState,
-  b: typeof initialState,
+  b: typeof initialState
 ) {
   return (
     a.user?.updatedAt === b.user?.updatedAt &&
